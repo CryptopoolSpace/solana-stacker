@@ -17,11 +17,20 @@ const WALLETS = [
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const CONFIG = {
-  ROUND_INTERVAL_MS: 35_000,   // 35 saat antara rounds
-  AIRDROP_AMOUNT_SOL: 2,       // 2 SOL per request
+  // Jeda antara setiap wallet dalam satu round (ms) — elak 429
+  DELAY_BETWEEN_WALLETS_MS: 8_000,   // 8 saat antara wallet
+
+  // Jeda antara round
+  ROUND_INTERVAL_MS: 60_000,          // 1 minit antara round
+
+  AIRDROP_AMOUNT_SOL: 2,
   LOG_FILE: "./stacker.log",
 
+  // RPC endpoints — satu per wallet, rotate
   RPC_ENDPOINTS: [
+    "https://api.devnet.solana.com",
+    "https://devnet.helius-rpc.com/?api-key=demo",
+    "https://rpc.ankr.com/solana_devnet",
     "https://api.devnet.solana.com",
     "https://devnet.helius-rpc.com/?api-key=demo",
     "https://rpc.ankr.com/solana_devnet",
@@ -41,44 +50,52 @@ function log(msg, type = "INFO") {
   const ts = new Date().toISOString();
   const line = `[${ts}] [${type.padEnd(7)}] ${msg}`;
   console.log(line);
-  fs.appendFileSync(CONFIG.LOG_FILE, line + "\n");
+  try { fs.appendFileSync(CONFIG.LOG_FILE, line + "\n"); } catch (_) {}
 }
 
-// ─── RPC ROTATOR ──────────────────────────────────────────────────────────────
-let rpcIndex = 0;
-function getConnection() {
-  const endpoint = CONFIG.RPC_ENDPOINTS[rpcIndex % CONFIG.RPC_ENDPOINTS.length];
-  rpcIndex++;
-  return new Connection(endpoint, "confirmed");
-}
+// ─── SLEEP ────────────────────────────────────────────────────────────────────
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// ─── AIRDROP SINGLE WALLET ────────────────────────────────────────────────────
-async function airdropWallet(wallet) {
-  const connection = getConnection();
+// ─── AIRDROP WITH RETRY ───────────────────────────────────────────────────────
+async function airdropWallet(wallet, rpcUrl) {
+  const connection = new Connection(rpcUrl, "confirmed");
   const pubkey = new PublicKey(wallet.address);
   const short = wallet.address.slice(0, 8);
 
-  try {
-    const sig = await connection.requestAirdrop(
-      pubkey,
-      CONFIG.AIRDROP_AMOUNT_SOL * LAMPORTS_PER_SOL
-    );
+  // Retry up to 3x with backoff
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const sig = await connection.requestAirdrop(
+        pubkey,
+        CONFIG.AIRDROP_AMOUNT_SOL * LAMPORTS_PER_SOL
+      );
 
-    await connection.confirmTransaction(sig, "confirmed");
+      await connection.confirmTransaction(sig, "confirmed");
 
-    const balance = await connection.getBalance(pubkey);
-    const balSOL = (balance / LAMPORTS_PER_SOL).toFixed(4);
+      const balance = await connection.getBalance(pubkey);
+      const balSOL = (balance / LAMPORTS_PER_SOL).toFixed(4);
 
-    stats.totalSuccess++;
-    stats.totalAirdropped += CONFIG.AIRDROP_AMOUNT_SOL;
+      stats.totalSuccess++;
+      stats.totalAirdropped += CONFIG.AIRDROP_AMOUNT_SOL;
 
-    log(`✅ ${wallet.label} [${short}...] +${CONFIG.AIRDROP_AMOUNT_SOL} SOL | Balance: ${balSOL} SOL`, "SUCCESS");
-    return { success: true, balance: parseFloat(balSOL) };
-  } catch (err) {
-    stats.totalFailed++;
-    const reason = err.message?.slice(0, 60) ?? "unknown";
-    log(`❌ ${wallet.label} [${short}...] FAILED — ${reason}`, "FAIL");
-    return { success: false, balance: 0 };
+      log(`✅ ${wallet.label} [${short}...] +${CONFIG.AIRDROP_AMOUNT_SOL} SOL | Balance: ${balSOL} SOL`, "SUCCESS");
+      return { success: true, balance: parseFloat(balSOL) };
+
+    } catch (err) {
+      const is429 = err.message?.includes("429") || err.message?.includes("Too Many");
+      const isLast = attempt === 3;
+
+      if (is429 && !isLast) {
+        const wait = attempt * 5000;
+        log(`⏳ ${wallet.label} rate limited — wait ${wait/1000}s (attempt ${attempt}/3)`, "RETRY");
+        await sleep(wait);
+      } else {
+        stats.totalFailed++;
+        const reason = err.message?.slice(0, 80) ?? "unknown";
+        log(`❌ ${wallet.label} [${short}...] FAILED — ${reason}`, "FAIL");
+        return { success: false };
+      }
+    }
   }
 }
 
@@ -89,30 +106,31 @@ async function showBalanceSummary() {
 
   for (const wallet of WALLETS) {
     try {
-      const conn = getConnection();
+      const conn = new Connection("https://api.devnet.solana.com", "confirmed");
       const bal = await conn.getBalance(new PublicKey(wallet.address));
       const balSOL = (bal / LAMPORTS_PER_SOL).toFixed(4);
       grandTotal += parseFloat(balSOL);
       log(`  ${wallet.label}: ${balSOL} SOL`, "SUMMARY");
+      await sleep(500);
     } catch (_) {
-      log(`  ${wallet.label}: ERROR reading balance`, "SUMMARY");
+      log(`  ${wallet.label}: error`, "SUMMARY");
     }
   }
 
   const uptime = ((Date.now() - stats.startTime) / 1000 / 60).toFixed(1);
-  log(`  💰 GRAND TOTAL : ${grandTotal.toFixed(4)} SOL`, "SUMMARY");
-  log(`  ✅ Total Success: ${stats.totalSuccess} | ❌ Failed: ${stats.totalFailed}`, "SUMMARY");
+  log(`  💰 GRAND TOTAL   : ${grandTotal.toFixed(4)} SOL`, "SUMMARY");
+  log(`  ✅ Success        : ${stats.totalSuccess}`, "SUMMARY");
+  log(`  ❌ Failed         : ${stats.totalFailed}`, "SUMMARY");
   log(`  📈 Total Airdropped: ~${stats.totalAirdropped} SOL`, "SUMMARY");
-  log(`  ⏱  Uptime: ${uptime} minutes`, "SUMMARY");
+  log(`  ⏱  Uptime         : ${uptime} min`, "SUMMARY");
   log("────────────────────────────────────────────────────", "SUMMARY");
 }
 
 // ─── MAIN LOOP ────────────────────────────────────────────────────────────────
 async function main() {
   log("🚀 Solana DevNet Stacker — STARTED", "BOOT");
-  log(`👛 ${WALLETS.length} wallets loaded`, "BOOT");
-  WALLETS.forEach(w => log(`  ${w.label}: ${w.address}`, "BOOT"));
-  log(`🔄 Interval: ${CONFIG.ROUND_INTERVAL_MS / 1000}s | Amount: ${CONFIG.AIRDROP_AMOUNT_SOL} SOL/wallet`, "BOOT");
+  log(`👛 ${WALLETS.length} wallets | Delay: ${CONFIG.DELAY_BETWEEN_WALLETS_MS/1000}s between wallets`, "BOOT");
+  log(`🔄 Round interval: ${CONFIG.ROUND_INTERVAL_MS/1000}s`, "BOOT");
 
   let round = 0;
 
@@ -120,23 +138,32 @@ async function main() {
     round++;
     log(`\n═══ ROUND ${round} ${"═".repeat(40)}`, "ROUND");
 
-    // Parallel airdrop semua wallets serentak
-    const results = await Promise.allSettled(
-      WALLETS.map(w => airdropWallet(w))
-    );
+    let success = 0;
 
-    const success = results.filter(r => r.value?.success).length;
-    const failed = WALLETS.length - success;
+    // Sequential — satu wallet at a time, tiap satu guna RPC berbeza
+    for (let i = 0; i < WALLETS.length; i++) {
+      const wallet = WALLETS[i];
+      const rpcUrl = CONFIG.RPC_ENDPOINTS[i % CONFIG.RPC_ENDPOINTS.length];
 
-    log(`Round ${round} — ✅ ${success}/${WALLETS.length} success | ❌ ${failed} failed`, "ROUND");
+      const result = await airdropWallet(wallet, rpcUrl);
+      if (result?.success) success++;
 
-    // Summary setiap 5 rounds
-    if (round % 5 === 0) {
+      // Delay antara wallets kecuali last one
+      if (i < WALLETS.length - 1) {
+        log(`⏳ Wait ${CONFIG.DELAY_BETWEEN_WALLETS_MS/1000}s before next wallet...`, "WAIT");
+        await sleep(CONFIG.DELAY_BETWEEN_WALLETS_MS);
+      }
+    }
+
+    log(`Round ${round} done — ✅ ${success}/${WALLETS.length} | ❌ ${WALLETS.length - success} failed`, "ROUND");
+
+    // Summary setiap 3 rounds
+    if (round % 3 === 0) {
       await showBalanceSummary();
     }
 
-    log(`⏳ Next round dalam ${CONFIG.ROUND_INTERVAL_MS / 1000}s...`, "WAIT");
-    await new Promise(r => setTimeout(r, CONFIG.ROUND_INTERVAL_MS));
+    log(`⏳ Round cooldown ${CONFIG.ROUND_INTERVAL_MS/1000}s...\n`, "WAIT");
+    await sleep(CONFIG.ROUND_INTERVAL_MS);
   }
 }
 
