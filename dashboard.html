@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOL Stacker Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg: #080b14;
+    --surface: #0e1422;
+    --card: #121929;
+    --border: #1e2d47;
+    --accent: #9945FF;
+    --accent2: #14F195;
+    --text: #e8edf5;
+    --muted: #4a5568;
+    --success: #14F195;
+    --fail: #ff4d6a;
+    --warn: #f5a623;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── STATS ROW ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .stat-value.green { color: var(--success); }
+  .stat-value.purple { color: var(--accent); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ── WALLETS ── */
+  .section-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .wallets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .wallet-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    transition: border-color 0.2s;
+  }
+
+  .wallet-card:hover { border-color: var(--accent); }
+
+  .wallet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .wallet-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent2);
+  }
+
+  .wallet-status {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .wallet-status.ok {
+    background: rgba(20, 241, 149, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(20, 241, 149, 0.2);
+  }
+
+  .wallet-status.loading {
+    background: rgba(245, 166, 35, 0.1);
+    color: var(--warn);
+    border: 1px solid rgba(245, 166, 35, 0.2);
+  }
+
+  .wallet-status.error {
+    background: rgba(255, 77, 106, 0.1);
+    color: var(--fail);
+    border: 1px solid rgba(255, 77, 106, 0.2);
+  }
+
+  .wallet-address {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    word-break: break-all;
+  }
+
+  .wallet-balance {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .wallet-balance span {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .wallet-usd {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .wallet-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+
+  .wallet-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 1s ease;
+  }
+
+  .wallet-txs {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── RECENT TXS ── */
+  .tx-list {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 28px;
+  }
+
+  .tx-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .tx-header-title {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .tx-row {
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(30, 45, 71, 0.5);
+    display: grid;
+    grid-template-columns: 1fr 120px 80px 80px;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    transition: background 0.15s;
+  }
+
+  .tx-row:hover { background: rgba(153, 69, 255, 0.04); }
+  .tx-row:last-child { border-bottom: none; }
+
+  .tx-sig {
+    font-family: 'Space Mono', monospace;
+    color: var(--accent);
+    font-size: 10px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .tx-sig:hover { color: var(--accent2); }
+
+  .tx-wallet { color: var(--muted); font-size: 11px; }
+  .tx-amount { color: var(--success); font-family: 'Space Mono', monospace; text-align: right; }
+  .tx-time { color: var(--muted); text-align: right; font-size: 10px; }
+
+  .tx-empty {
+    padding: 40px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ── REFRESH ── */
+  .refresh-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .refresh-btn {
+    background: linear-gradient(135deg, var(--accent), #7b2fff);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .refresh-btn:hover { opacity: 0.85; }
+  .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .last-update {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* ── PROGRESS ── */
+  .progress-wrap {
+    margin-bottom: 8px;
+  }
+
+  .progress-track {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    transition: width 1s linear;
+  }
+
+  .explorer-link {
+    font-size: 10px;
+    color: var(--accent);
+    text-decoration: none;
+    font-family: 'Space Mono', monospace;
+  }
+  .explorer-link:hover { color: var(--accent2); }
+
+  @media (max-width: 600px) {
+    .tx-row { grid-template-columns: 1fr 70px; }
+    .tx-wallet, .tx-time { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">◎</div>
+    <div class="logo-text">SOL Stacker</div>
+  </div>
+  <div class="badge">
+    <div class="dot"></div>
+    DEVNET LIVE
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Balance</div>
+    <div class="stat-value green" id="total-balance">—</div>
+    <div class="stat-sub">across 6 wallets</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Wallets Active</div>
+    <div class="stat-value purple" id="active-wallets">—</div>
+    <div class="stat-sub">of 6 total</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Highest Wallet</div>
+    <div class="stat-value" id="highest-wallet">—</div>
+    <div class="stat-sub" id="highest-label">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last Updated</div>
+    <div class="stat-value" style="font-size:16px" id="last-updated">—</div>
+    <div class="stat-sub">auto-refresh 30s</div>
+  </div>
+</div>
+
+<div class="refresh-bar">
+  <p class="section-title">Wallet Balances</p>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="last-update" id="countdown">Next refresh: 30s</span>
+    <button class="refresh-btn" id="refresh-btn" onclick="fetchAll()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-track">
+    <div class="progress-fill" id="progress-bar" style="width:100%"></div>
+  </div>
+</div>
+
+<div class="wallets-grid" id="wallets-grid"></div>
+
+<p class="section-title">Recent Transactions</p>
+<div class="tx-list">
+  <div class="tx-header">
+    <span class="tx-header-title">Airdrop History</span>
+    <a class="explorer-link" href="https://explorer.solana.com/?cluster=devnet" target="_blank">View on Explorer ↗</a>
+  </div>
+  <div id="tx-body">
+    <div class="tx-empty">Loading transactions...</div>
+  </div>
+</div>
+
+<script>
+const WALLETS = [
+  { label: "Wallet-1", address: "HMwM5poqGaHKHU9MKinD2GEskXKoUQGe6XzKXRcExhbD" },
+  { label: "Wallet-2", address: "BYUNJPHWuG2NpziEkrDGoHqGprJd8eq2rggRkHAcMCPn" },
+  { label: "Wallet-3", address: "FiS6qMJDStCdmYFA1cAJLyJzyktkknDNLx62sAfNgLLT" },
+  { label: "Wallet-4", address: "GLjBAeSvehAG2hiWGYfnMR86mqRodJrk73gsV6GQqZeU" },
+  { label: "Wallet-5", address: "8ZHesVPxe92s2tVwqUBQLAshhM26JAWYzDa7BbPSrfGd" },
+  { label: "Wallet-6", address: "8tWE3ki7N1cWRZatk4Xwi3ntjaSbKsKGue5WmUooustt" },
+];
+
+const RPC = "https://api.devnet.solana.com";
+const LAMPORTS = 1_000_000_000;
+
+let balances = {};
+let txHistory = [];
+let countdown = 30;
+let countdownTimer;
+let progressTimer;
+
+async function rpc(method, params) {
+  const res = await fetch(RPC, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const data = await res.json();
+  return data.result;
+}
+
+async function getBalance(address) {
+  const result = await rpc("getBalance", [address, { commitment: "confirmed" }]);
+  return result?.value ?? 0;
+}
+
+async function getRecentTxs(address, limit = 5) {
+  const sigs = await rpc("getSignaturesForAddress", [address, { limit }]);
+  return (sigs || []).map(s => ({
+    sig: s.signature,
+    time: s.blockTime,
+    err: s.err,
+  }));
+}
+
+function shortAddr(addr) {
+  return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
+function timeAgo(ts) {
+  if (!ts) return "—";
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 60) return diff + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  return Math.floor(diff / 3600) + "h ago";
+}
+
+function renderWallets(loading = false) {
+  const grid = document.getElementById("wallets-grid");
+  const maxBal = Math.max(...WALLETS.map(w => balances[w.address] ?? 0), 1);
+
+  grid.innerHTML = WALLETS.map(w => {
+    const bal = balances[w.address] ?? null;
+    const balSOL = bal !== null ? (bal / LAMPORTS).toFixed(4) : "—";
+    const pct = bal !== null ? Math.min((bal / LAMPORTS / maxBal) * 100, 100) : 0;
+    const status = loading ? "loading" : (bal !== null ? "ok" : "error");
+    const statusText = loading ? "Loading..." : (bal !== null ? "Active" : "Error");
+
+    return `
+    <div class="wallet-card">
+      <div class="wallet-header">
+        <span class="wallet-label">${w.label}</span>
+        <span class="wallet-status ${status}">${statusText}</span>
+      </div>
+      <div class="wallet-address">${w.address}</div>
+      <div class="wallet-balance">${balSOL} <span>SOL</span></div>
+      <div class="wallet-bar">
+        <div class="wallet-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="wallet-txs">
+        <a class="explorer-link" href="https://explorer.solana.com/address/${w.address}?cluster=devnet" target="_blank">
+          View on Explorer ↗
+        </a>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderTxs() {
+  const body = document.getElementById("tx-body");
+  if (txHistory.length === 0) {
+    body.innerHTML = '<div class="tx-empty">No transactions found yet.</div>';
+    return;
+  }
+
+  body.innerHTML = txHistory.slice(0, 20).map(tx => `
+    <div class="tx-row">
+      <a class="tx-sig" href="https://explorer.solana.com/tx/${tx.sig}?cluster=devnet" target="_blank">
+        ${tx.sig.slice(0, 20)}...
+      </a>
+      <span class="tx-wallet">${tx.walletLabel}</span>
+      <span class="tx-amount">${tx.err ? "FAIL" : "+2 SOL"}</span>
+      <span class="tx-time">${timeAgo(tx.time)}</span>
+    </div>
+  `).join("");
+}
+
+function updateStats() {
+  const bals = WALLETS.map(w => (balances[w.address] ?? 0) / LAMPORTS);
+  const total = bals.reduce((a, b) => a + b, 0);
+  const active = bals.filter(b => b > 0).length;
+  const maxIdx = bals.indexOf(Math.max(...bals));
+
+  document.getElementById("total-balance").textContent = total.toFixed(4) + " SOL";
+  document.getElementById("active-wallets").textContent = active;
+  document.getElementById("highest-wallet").textContent = bals[maxIdx].toFixed(4) + " SOL";
+  document.getElementById("highest-label").textContent = WALLETS[maxIdx].label;
+  document.getElementById("last-updated").textContent = new Date().toLocaleTimeString();
+}
+
+function startCountdown() {
+  clearInterval(countdownTimer);
+  clearInterval(progressTimer);
+  countdown = 30;
+
+  countdownTimer = setInterval(() => {
+    countdown--;
+    document.getElementById("countdown").textContent = `Next refresh: ${countdown}s`;
+    if (countdown <= 0) {
+      clearInterval(countdownTimer);
+      fetchAll();
+    }
+  }, 1000);
+
+  let progress = 100;
+  progressTimer = setInterval(() => {
+    progress -= (100 / 30);
+    const bar = document.getElementById("progress-bar");
+    if (bar) bar.style.width = Math.max(0, progress) + "%";
+  }, 1000);
+}
+
+async function fetchAll() {
+  const btn = document.getElementById("refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "Loading...";
+
+  renderWallets(true);
+
+  await Promise.all(WALLETS.map(async w => {
+    try {
+      balances[w.address] = await getBalance(w.address);
+    } catch (_) {
+      balances[w.address] = null;
+    }
+  }));
+
+  // Fetch recent txs for all wallets
+  txHistory = [];
+  await Promise.all(WALLETS.map(async w => {
+    try {
+      const txs = await getRecentTxs(w.address, 5);
+      txs.forEach(tx => txHistory.push({ ...tx, walletLabel: w.label }));
+    } catch (_) {}
+  }));
+
+  txHistory.sort((a, b) => (b.time ?? 0) - (a.time ?? 0));
+
+  renderWallets(false);
+  renderTxs();
+  updateStats();
+
+  btn.disabled = false;
+  btn.textContent = "↻ Refresh";
+  startCountdown();
+}
+
+// Init
+renderWallets(true);
+fetchAll();
+</script>
+</body>
+</html>
