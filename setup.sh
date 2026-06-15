@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# Install Solana CLI
-sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-
-# Add to PATH
-export PATH="/home/codespace/.local/share/solana/install/active_release/bin:$PATH"
+# Install via npm (no curl needed)
+npm install -g @solana/cli
 
 # Set devnet
 solana config set --url devnet
 
-# Check version
+# Check
 solana --version
 
-echo "✅ Solana CLI ready. Run: solana airdrop 5"
+echo "✅ Done"
